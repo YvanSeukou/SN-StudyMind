@@ -1,0 +1,31 @@
+# ─── Stage 1 : Build avec Maven ───────────────────────────────────────────────
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
+
+WORKDIR /app
+
+# Copier le pom.xml en premier pour profiter du cache Maven
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+# Copier le reste du code source
+COPY src ./src
+
+# Construire le JAR (sans les tests pour aller plus vite)
+RUN mvn clean package -DskipTests -q
+
+# ─── Stage 2 : Image finale légère ────────────────────────────────────────────
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
+# Créer le dossier uploads
+RUN mkdir -p /app/uploads
+
+# Copier le JAR depuis le builder
+COPY --from=builder /app/target/SN_StudyMind-0.0.1-SNAPSHOT.jar app.jar
+
+# Exposer le port du backend
+EXPOSE 8080
+
+# Démarrer l'application
+ENTRYPOINT ["java", "-jar", "app.jar"]

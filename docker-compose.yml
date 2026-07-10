@@ -1,0 +1,87 @@
+services:
+
+  # ── Base de données MySQL ────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: studymind-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-***SUPPRIME***}
+      MYSQL_DATABASE: sn_studymind
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-***SUPPRIME***}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── IA : Ollama (llama3.2:3b) ───────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: studymind-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    # Décommentez la ligne suivante si vous avez un GPU Nvidia
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ── Backend Spring Boot ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: studymind-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      # Base de données
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/sn_studymind?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-***SUPPRIME***}
+      # JPA
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-***SUPPRIME***}
+      JWT_EXPIRATION: 86400000
+      # Ollama
+      SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
+      SPRING_AI_OLLAMA_CHAT_MODEL: llama3.2:3b
+      # Upload
+      FILE_UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "8081:8080"
+
+  # ── Frontend React + Nginx ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: studymind-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+# ── Volumes persistants ──────────────────────────────────────────────────────
+volumes:
+  mysql_data:
+  ollama_data:
+  uploads_data:

@@ -1,0 +1,7 @@
+studymind-frontend/node_modules
+studymind-frontend/dist
+target
+uploads
+.git
+.idea
+*.log

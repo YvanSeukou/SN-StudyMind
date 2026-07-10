@@ -1,0 +1,30 @@
+# ─── Stage 1 : Build React avec Node ─────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copier package.json et installer les dépendances
+COPY studymind-frontend/package*.json ./
+RUN npm install
+
+# Copier le code source frontend
+COPY studymind-frontend/ ./
+
+# L'app appelle le backend via le proxy Nginx (/api/), quel que soit le port hôte
+ENV VITE_API_URL=/api
+
+# Construire le frontend (génère le dossier dist/)
+RUN npm run build
+
+# ─── Stage 2 : Servir avec Nginx ──────────────────────────────────────────────
+FROM nginx:alpine
+
+# Copier le build React dans Nginx
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copier la configuration Nginx personnalisée
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
